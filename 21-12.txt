@@ -1,0 +1,208 @@
+import pickle
+import numpy as np
+from fastapi import FastAPI
+from pydantic import BaseModel
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.tree import DecisionTreeClassifier
+from typing import List
+import joblib
+from fastapi.middleware.cors import CORSMiddleware
+import pandas as pd
+
+# Initialize FastAPI app
+app = FastAPI()
+
+# Load the trained model, label encoder, one-hot encoder, and scaler from pickle files
+with open('model/decision_tree_model.pkl', 'rb') as f:
+    model = pickle.load(f)
+
+with open('model/label_encoder.pkl', 'rb') as f:
+    label_encoder = pickle.load(f)
+
+one_hot_encoder = joblib.load('model/onehot_encoder.pkl')
+# with open('model/onehot_encoder.pkl', 'rb') as f:
+#     one_hot_encoder = pickle.load(f)
+
+scaler = joblib.load('model/standard_scaler.pkl')
+# with open('model/standard_scaler.pkl', 'rb') as f:
+#     scaler = pickle.load(f)
+
+# Define the input data model for the API
+class InputData(BaseModel):
+    age: int
+    workclass: str
+    fnlwgt: int
+    education: str
+    marital_status: str
+    occupation: str
+    relationship: str
+    race: str
+    gender: str
+    capital_gain: int
+    capital_loss: int
+    hours_per_week: int
+    native_country: str
+    
+# CORS Middleware for Angular Integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],  # Replace with Angular URL in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+def read_root():
+  print("Enterd the root URL")
+  return {"Hello": "World"}
+  
+# # Define the prediction API endpoint
+# @app.post("/predict")
+# def predict(data: InputData):
+#     # Convert the incoming data into a format suitable for model prediction
+#     input_data = np.array([[
+#         data.age,
+#         data.workclass,
+#         data.fnlwgt,
+#         data.education,
+#         data.marital_status,
+#         data.occupation,
+#         data.relationship,
+#         data.race,
+#         data.gender,
+#         data.capital_gain,
+#         data.capital_loss,
+#         data.hours_per_week,
+#         data.native_country
+#     ]])
+
+#     # Apply one-hot encoding to the categorical columns (using previously trained one-hot encoder)
+#     input_data_encoded = one_hot_encoder.transform(input_data)
+
+#     # Scale the numerical data using the pre-trained scaler
+#     scaled_input_data = scaler.transform(input_data_encoded)
+
+#     # Make a prediction using the trained Decision Tree model
+#     prediction = model.predict(scaled_input_data)
+
+#     # Decode the prediction to get the original label (e.g., '<=50K' or '>50K')
+#     result = label_encoder.inverse_transform(prediction)
+
+#     return {"prediction": result[0]}
+
+# @app.post("/predict")
+# def predict(data: InputData):
+#     # print(data)
+#     # List of categorical columns for One-Hot Encoding
+#     categorical_columns = [
+#         'workclass', 'education', 'marital_status', 'occupation', 
+#         'relationship', 'race', 'gender', 'native_country'
+#     ]
+
+#     # List of numerical columns for scaling
+#     numerical_columns = ['age', 'fnlwgt', 'capital_gain', 'capital_loss', 'hours_per_week']
+
+#     # Separate the data into categorical and numerical
+#     categorical_data = {col: getattr(data, col) for col in categorical_columns}
+#     numerical_data = {col: getattr(data, col) for col in numerical_columns}
+
+#     # Convert categorical data to a DataFrame (to apply OneHotEncoder)
+#     categorical_df = pd.DataFrame([categorical_data])
+    
+#     # Convert categorical data to a 2D array (to apply OneHotEncoder)
+#     # categorical_values = np.array(list(categorical_data.values())).reshape(1, -1)
+
+#     # Apply One-Hot Encoding to categorical data
+#     categorical_encoded = one_hot_encoder.transform(categorical_df)
+
+#     # Convert numerical data to a 2D array (to apply StandardScaler)
+#     numerical_values = np.array(list(numerical_data.values())).reshape(1, -1)
+
+#     # Apply scaling to numerical data
+#     numerical_scaled = scaler.transform(numerical_values)
+
+#     # Combine the encoded categorical data and scaled numerical data
+#     input_data = np.concatenate([categorical_encoded.toarray(), numerical_scaled], axis=1)
+
+#     # Make a prediction using the trained Decision Tree model
+#     prediction = model.predict(input_data)
+
+#     # Decode the prediction to get the original label (e.g., '<=50K' or '>50K')
+#     result = label_encoder.inverse_transform(prediction)
+
+#     return {"prediction": result[0]}
+
+
+@app.post("/predict")
+def predict(data: InputData):
+    print("Entered the predict URL in main.py file")
+    # List of categorical columns for One-Hot Encoding. I have used data columns names
+    categorical_columns = [
+        'workclass', 'education', 'marital-status', 'occupation', 
+        'relationship', 'race', 'sex', 'native-country'
+    ]
+    print(categorical_columns)
+    
+    # List of numerical columns for scaling
+    numerical_columns = ['age', 'fnlwgt', 'capital-gain', 'capital-loss', 'hours-per-week']
+
+    # Separate the data into categorical and numerical. this is the incoming data
+    categorical_data = {
+        'workclass': data.workclass,
+        'education': data.education,
+        'marital-status': data.marital_status,  # Use 'marital-status' here
+        'occupation': data.occupation,
+        'relationship': data.relationship,
+        'race': data.race,
+        'sex': data.gender,  # Use 'sex' here
+        'native-country': data.native_country  # Use 'native-country' here
+    }
+
+    numerical_data = {
+        'age': data.age,
+        'fnlwgt': data.fnlwgt,
+        'capital_gain': data.capital_gain,
+        'capital_loss': data.capital_loss,
+        'hours_per_week': data.hours_per_week
+    }
+    
+    # Convert categorical data to a DataFrame (to apply OneHotEncoder)
+    categorical_df = pd.DataFrame([categorical_data])
+
+    # Apply One-Hot Encoding to categorical data
+    categorical_encoded = one_hot_encoder.transform(categorical_df)
+    
+    # Check if the result is sparse and convert to a dense numpy array if it is
+    if isinstance(categorical_encoded, np.ndarray):
+        categorical_encoded_array = categorical_encoded
+    else:
+        categorical_encoded_array = categorical_encoded.toarray()  # Convert sparse matrix to array
+
+
+    # Convert numerical data to a 2D array (to apply StandardScaler)
+    numerical_values = np.array(list(numerical_data.values())).reshape(1, -1)
+
+    # Apply scaling to numerical data
+    numerical_scaled = scaler.transform(numerical_values)
+
+    # Combine the encoded categorical data and scaled numerical data
+    input_data = np.concatenate([categorical_encoded_array, numerical_scaled], axis=1)
+
+    print('this is the input data')
+    print(input_data)
+    
+    # Make a prediction using the trained Decision Tree model
+    prediction = model.predict(input_data)
+
+    # Decode the prediction to get the original label (e.g., '<=50K' or '>50K')
+    # result = label_encoder.inverse_transform(prediction)
+    
+     # Decode the prediction to get the original label (e.g., '<=50K' or '>50K')
+    # result = label_encoder.inverse_transform(prediction.reshape(-1))  # Ensure it's a 1D array
+    
+    # result = label_encoder.inverse_transform(prediction)
+
+    return {"prediction": prediction[0]}
+
+
